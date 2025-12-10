@@ -112,7 +112,10 @@ export class ProductsService {
   }
 
   async findOne(id: number) {
-    return this.prisma.product.findUnique({ where: { id } });
+    return this.prisma.product.findUnique({
+      where: { id },
+      include: { images: true },
+    });
   }
 
   async update(id: number, updateProductDto: UpdateProductDto) {
@@ -125,7 +128,7 @@ export class ProductsService {
     });
 
     if (product.stock <= 5 && product.seller?.user?.email) {
-      await this.mailService.sendLowStockWarning(product.seller.user.email, product.name, product.stock);
+      await this.mailService.sendLowStockAlert(product.seller.user.email, product.name, product.stock);
     }
 
     return product;

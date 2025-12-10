@@ -7,6 +7,8 @@ import { MailService } from '../mail/mail.service';
 
 @Injectable()
 export class OrdersService {
+  private readonly LOW_STOCK_THRESHOLD = 5;
+
   constructor(
     private prisma: PrismaService,
     private mailService: MailService,
@@ -83,20 +85,27 @@ export class OrdersService {
         },
       },
       include: {
-        orderItems: { include: { product: true } },
+        orderItems: { include: { product: { include: { images: true } } } },
         user: true, // Include user to get email
         seller: { include: { user: true } }, // Include seller -> user to get seller email
       },
     });
 
-    // Send confirmation email to customer
-    if (order.user && order.user.email) {
-      await this.mailService.sendOrderConfirmation(order.user as any, order);
+    // 5. Update Stock and Check for Low Stock
+    for (const item of items) {
+      const updatedProduct = await this.prisma.product.update({
+        where: { id: item.productId },
+        data: { stock: { decrement: item.quantity } },
+      });
+
+      if (updatedProduct.stock <= this.LOW_STOCK_THRESHOLD && order.seller?.user?.email) {
+        await this.mailService.sendLowStockAlert(order.seller.user.email, updatedProduct.name, updatedProduct.stock);
+      }
     }
 
-    // Send new order alert to seller
-    if (order.seller?.user?.email) {
-      await this.mailService.sendNewOrderAlert(order.seller.user.email, order);
+    // Send confirmation email to customer
+    if (order.user && order.user.email) {
+      await this.mailService.sendOrderConfirmation(order.user.email, order.id, order.totalAmount);
     }
 
     return order;
@@ -127,7 +136,7 @@ export class OrdersService {
         where: { sellerId: sellerProfile.id },
         include: {
           orderItems: {
-            include: { product: true },
+            include: { product: { include: { images: true } } },
           },
           user: {
             select: { name: true },
@@ -140,7 +149,7 @@ export class OrdersService {
         where: { userId: user.id },
         include: {
           orderItems: {
-            include: { product: true },
+            include: { product: { include: { images: true } } },
           },
           seller: {
             select: { stallName: true },
@@ -155,7 +164,7 @@ export class OrdersService {
     return this.prisma.order.findUnique({
       where: { id },
       include: {
-        orderItems: { include: { product: true } },
+        orderItems: { include: { product: { include: { images: true } } } },
         user: true,
         seller: true,
       },
@@ -169,9 +178,9 @@ export class OrdersService {
       include: { user: true },
     });
 
-    // Send email for significant status updates
-    if (updateOrderDto.status && ['PROCESSING', 'READY', 'COMPLETED', 'CANCELLED', 'REJECTED'].includes(updateOrderDto.status) && order.user && order.user.email) {
-      await this.mailService.sendOrderStatusUpdate(order.user as any, order);
+    // Send email when order is READY
+    if (updateOrderDto.status === 'READY' && order.user && order.user.email) {
+      await this.mailService.sendOrderReady(order.user.email, order.id);
     }
 
     return order;

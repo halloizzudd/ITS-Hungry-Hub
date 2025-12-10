@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import api from '@/lib/axios';
+import { getImageUrl } from '@/utils/image';
 import { Clock, Plus, ShoppingCart, Search, Star, Utensils, X, ChevronRight, Filter, User, Bell, LogOut, ChevronDown, UserCircle } from 'lucide-react';
 import { useCartStore } from '@/store/useCartStore';
 import { useAuthStore } from '@/store/useAuthStore'; // Import Auth
@@ -19,6 +20,7 @@ interface Product {
     prepTime: number;
     sellerId: number;
     stallName?: string;
+    images?: { url: string }[];
 }
 
 const CATEGORIES = ["All", "Food", "Drink", "Snack"];
@@ -63,8 +65,11 @@ export default function ConsumerDashboard() {
         const fetchProducts = async () => {
             try {
                 const response = await api.get('/products');
-                setProducts(response.data);
-                setFilteredProducts(response.data);
+                // Backend now returns { data: [], meta: {} }
+                const productList = response.data.data || response.data;
+                console.log('Dashboard products:', productList);
+                setProducts(productList);
+                setFilteredProducts(productList);
             } catch (error) {
                 console.error('Failed to fetch products', error);
             } finally {
@@ -108,7 +113,7 @@ export default function ConsumerDashboard() {
             price: product.price,
             quantity: 1,
             sellerId: product.sellerId,
-            image: product.imageUrl
+            image: product.imageUrl || product.images?.[0]?.url
         });
     };
 
@@ -325,9 +330,9 @@ export default function ConsumerDashboard() {
                                     {/* Floating Image */}
                                     <div className="absolute -top-16 left-1/2 -translate-x-1/2 w-44 h-44">
                                         <div className="w-full h-full rounded-full border-[8px] border-[#f8fcf8] shadow-xl overflow-hidden relative z-10 bg-white group-hover:scale-105 transition-transform duration-500 ease-out">
-                                            {product.imageUrl ? (
+                                            {getImageUrl(product.imageUrl || product.images?.[0]?.url) ? (
                                                 <img
-                                                    src={product.imageUrl.startsWith('http') ? product.imageUrl : `${process.env.NEXT_PUBLIC_API_URL}${product.imageUrl}`}
+                                                    src={getImageUrl(product.imageUrl || product.images?.[0]?.url)}
                                                     alt={product.name}
                                                     className="h-full w-full object-cover"
                                                 />

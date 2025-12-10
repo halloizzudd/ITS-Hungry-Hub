@@ -68,6 +68,7 @@ export class ProductsController {
       limit: limit ? Number(limit) : 10,
     });
   }
+  @Get(':id')
   findOne(@Param('id') id: string) {
     return this.productsService.findOne(+id);
   }

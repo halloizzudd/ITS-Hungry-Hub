@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import api from '@/lib/axios';
+import { getImageUrl } from '@/utils/image';
 import { Order, OrderStatus } from '@/types/order';
 import { ChefHat, CheckCircle, AlertCircle, Archive, Eye } from 'lucide-react';
 
@@ -13,6 +14,7 @@ export default function SellerOrdersPage() {
     const fetchOrders = async () => {
         try {
             const res = await api.get('/orders');
+            console.log(res.data);
             setOrders(res.data);
         } catch (error) {
             console.error('Failed to fetch orders', error);
@@ -44,13 +46,7 @@ export default function SellerOrdersPage() {
 
     if (loading) return <div className="p-10 text-center text-gray-400 font-medium">Loading orders...</div>;
 
-    const getImageUrl = (url: string | null) => {
-        if (!url) return '';
-        if (url.startsWith('http')) return url;
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || '';
-        const cleanUrl = url.startsWith('/') ? url : `/${url}`;
-        return `${baseUrl}${cleanUrl}`;
-    };
+
 
     return (
         <div className="max-w-7xl mx-auto space-y-12 pb-20">

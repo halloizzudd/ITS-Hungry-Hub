@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import api from '@/lib/axios';
-import { ChevronLeft, Upload, Loader2, DollarSign, Clock, Package, Save } from 'lucide-react';
+import { getImageUrl } from '@/utils/image';
+import { ChevronLeft, Upload, Loader2, DollarSign, Clock, Package, Save, Trash2 } from 'lucide-react';
 
 export default function EditProductPage() {
     const router = useRouter();
@@ -16,7 +17,7 @@ export default function EditProductPage() {
         price: '',
         stock: '',
         prepTime: '',
-        category: 'Food',
+        category: '',
     });
     const [image, setImage] = useState<File | null>(null);
     const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
@@ -37,7 +38,7 @@ export default function EditProductPage() {
                     prepTime: product.prepTime.toString(),
                     category: product.category,
                 });
-                setCurrentImageUrl(product.imageUrl);
+                setCurrentImageUrl(product.imageUrl || product.images?.[0]?.url);
             } catch (err) {
                 console.error('Failed to fetch product', err);
                 setError('Failed to load product details');
@@ -89,6 +90,22 @@ export default function EditProductPage() {
         }
     };
 
+    const handleDelete = async () => {
+        if (!window.confirm('Are you sure you want to delete this dish? This action cannot be undone.')) {
+            return;
+        }
+
+        setLoading(true);
+        try {
+            await api.delete(`/products/${id}`);
+            router.push('/seller/products');
+        } catch (err: any) {
+            console.error('Failed to delete product', err);
+            setError(err.response?.data?.message || 'Failed to delete product');
+            setLoading(false);
+        }
+    };
+
     if (fetching) return (
         <div className="flex h-screen items-center justify-center bg-[#f8fcf8]">
             <Loader2 className="h-8 w-8 animate-spin text-[#5C9E33]" />
@@ -98,9 +115,7 @@ export default function EditProductPage() {
     const getPreviewUrl = () => {
         if (image) return URL.createObjectURL(image);
         if (currentImageUrl) {
-            return currentImageUrl.startsWith('http')
-                ? currentImageUrl
-                : `${process.env.NEXT_PUBLIC_API_URL}${currentImageUrl}`;
+            return getImageUrl(currentImageUrl);
         }
         return null;
     };
@@ -241,21 +256,32 @@ export default function EditProductPage() {
                             </div>
                         </div>
 
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="w-full mt-8 rounded-2xl bg-[#5C9E33] px-6 py-4 text-white font-bold text-lg shadow-xl shadow-green-500/30 transition-all hover:bg-[#4a8226] hover:scale-[1.02] active:scale-95 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                        >
-                            {loading ? (
-                                <>
-                                    <Loader2 className="h-5 w-5 animate-spin" /> Saving Changes...
-                                </>
-                            ) : (
-                                <>
-                                    <Save className="h-5 w-5" /> Save Changes
-                                </>
-                            )}
-                        </button>
+                        <div className="flex gap-4 mt-8">
+                            <button
+                                type="button"
+                                onClick={handleDelete}
+                                disabled={loading}
+                                className="flex-1 rounded-2xl bg-red-50 text-red-600 px-6 py-4 font-bold text-lg border border-red-100 transition-all hover:bg-red-100 hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            >
+                                <Trash2 className="h-5 w-5" /> Delete Dish
+                            </button>
+
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="flex-[2] rounded-2xl bg-[#5C9E33] px-6 py-4 text-white font-bold text-lg shadow-xl shadow-green-500/30 transition-all hover:bg-[#4a8226] hover:scale-[1.02] active:scale-95 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            >
+                                {loading ? (
+                                    <>
+                                        <Loader2 className="h-5 w-5 animate-spin" /> Saving...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Save className="h-5 w-5" /> Save Changes
+                                    </>
+                                )}
+                            </button>
+                        </div>
                     </form>
                 </div>
             </div>

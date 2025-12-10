@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import api from '@/lib/axios';
+import { getImageUrl } from '@/utils/image';
 
 export default function CartPage() {
     const { items, removeFromCart, updateQuantity, clearCart, getTotalPrice } = useCartStore();
@@ -82,10 +83,10 @@ export default function CartPage() {
                             <div key={item.productId} className="group flex gap-5 items-center p-3 rounded-[2rem] hover:bg-[#f8fcf8] transition-colors border border-transparent hover:border-green-50">
                                 {/* Item Image */}
                                 <div className="h-24 w-24 flex-shrink-0 overflow-hidden rounded-[1.5rem] bg-gray-100 shadow-md border border-white">
-                                    {item.image ? (
+                                    {getImageUrl(item.image) ? (
                                         // eslint-disable-next-line @next/next/no-img-element
                                         <img
-                                            src={item.image.startsWith('http') ? item.image : `${process.env.NEXT_PUBLIC_API_URL}${item.image}`}
+                                            src={getImageUrl(item.image)}
                                             alt={item.name}
                                             className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-500"
                                         />

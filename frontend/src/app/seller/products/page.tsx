@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import api from '@/lib/axios';
+import { getImageUrl } from '@/utils/image';
 import { Plus, Clock, Tag, Utensils, Edit2, Trash2, AlertCircle } from 'lucide-react';
+import Image from 'next/image';
 
 interface Product {
     id: number;
@@ -22,7 +24,10 @@ export default function ProductListPage() {
     const fetchProducts = async () => {
         try {
             const response = await api.get('/products');
-            setProducts(response.data);
+            // Backend now returns { data: [], meta: {} }
+            const productList = response.data.data || response.data;
+            console.log('Fetched products:', productList);
+            setProducts(productList);
         } catch (error) {
             console.error('Failed to fetch products', error);
         } finally {
@@ -47,11 +52,7 @@ export default function ProductListPage() {
         }
     };
 
-    const getImageUrl = (url: string | null) => {
-        if (!url) return null;
-        if (url.startsWith('http')) return url;
-        return `${process.env.NEXT_PUBLIC_API_URL}${url}`;
-    };
+
 
     if (loading) return (
         <div className="flex justify-center items-center min-h-[50vh]">
@@ -85,21 +86,28 @@ export default function ProductListPage() {
                 </div>
             ) : (
                 <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                    {products.map((product) => {
-                        const fullImageUrl = getImageUrl(product.imageUrl);
+                    {products.map((product: any) => {
+                        console.log({product});
+
+                        
+                        const fullImageUrl = getImageUrl(product.imageUrl || product.images?.[0]?.url);
+                        console.log({fullImageUrl});
                         return (
                             <div key={product.id} className="group relative bg-white rounded-[2.5rem] p-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-xl hover:shadow-green-900/10 transition-all duration-300 hover:-translate-y-1 border border-transparent hover:border-green-100 flex flex-col h-full">
                                 {/* Image */}
                                 <div className="relative aspect-square rounded-[2rem] bg-gray-100 overflow-hidden mb-4 shadow-inner">
                                     {fullImageUrl ? (
                                         // eslint-disable-next-line @next/next/no-img-element
-                                        <img
+                                        <Image
+                                            width={300}
+                                            height={300}
                                             src={fullImageUrl}
+                                            unoptimized
                                             alt={product.name}
                                             className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
-                                            onError={(e) => {
-                                                (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300?text=No+Image';
-                                            }}
+                                            // onError={(e) => {
+                                            //     (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300?text=No+Image';
+                                            // }}
                                         />
                                     ) : (
                                         <div className="flex h-full items-center justify-center text-gray-300">
