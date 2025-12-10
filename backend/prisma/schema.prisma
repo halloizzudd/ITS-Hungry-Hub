@@ -1,0 +1,110 @@
+// schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// Models
+model User {
+  id            Int            @id @default(autoincrement())
+  email         String         @unique
+  password      String
+  name          String
+  role          String         @default("CONSUMER")
+  sellerProfile SellerProfile? @relation
+
+  orders        Order[]
+
+  @@map("users")
+}
+
+model SellerProfile {
+  id                   Int     @id @default(autoincrement())
+  stallName            String
+  description          String
+  location             String
+  isOpen               Boolean @default(false)
+  verificationStatus   String  @default("UNVERIFIED")
+  rejectionReason      String?
+  photoKtpUrl          String?
+  photoStallUrl        String?
+  qrisImageUrl         String?
+
+  userId               Int     @unique
+  user                 User    @relation(fields: [userId], references: [id])
+
+  products             Product[]
+  orders               Order[]
+
+  @@map("seller_profiles")
+}
+
+model Product {
+  id          Int          @id @default(autoincrement())
+  name        String
+  description String
+  price       Float
+  stock       Int
+  sku         String?      @unique
+  category    String
+  imageUrl    String?      // Keep for backward compatibility or main image
+  images      ProductImage[]
+  prepTime    Int          @default(5)
+  
+  sellerId    Int
+  seller      SellerProfile @relation(fields: [sellerId], references: [id])
+
+  orderItems  OrderItem[]
+
+  @@map("products")
+}
+
+model ProductImage {
+  id        Int     @id @default(autoincrement())
+  url       String
+  productId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("product_images")
+}
+
+model Order {
+  id              Int     @id @default(autoincrement())
+  totalAmount     Float
+  status          String
+  orderType       String
+  paymentProofUrl String?
+  estimatedReadyAt DateTime?
+
+  userId          Int
+  user            User    @relation(fields: [userId], references: [id])
+
+  sellerId        Int
+  seller          SellerProfile @relation(fields: [sellerId], references: [id])
+
+  orderItems      OrderItem[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id          Int     @id @default(autoincrement())
+  quantity    Int
+  price       Float
+
+  orderId     Int
+  order       Order   @relation(fields: [orderId], references: [id])
+
+  productId   Int
+  product     Product @relation(fields: [productId], references: [id])
+
+  @@map("order_items")
+}
