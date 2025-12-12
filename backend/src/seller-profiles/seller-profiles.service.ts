@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { CreateSellerProfileDto } from './dto/create-seller-profile.dto';
 import { SellerProfile } from '@prisma/client';
@@ -20,6 +20,36 @@ export class SellerProfilesService {
     dto: CreateSellerProfileDto,
     files: any,
   ): Promise<SellerProfile> {
+    // Check if profile already exists
+    const existingProfile = await this.prisma.sellerProfile.findUnique({
+      where: { userId: user.id },
+    });
+
+    if (existingProfile) {
+      if (existingProfile.verificationStatus === 'REJECTED') {
+        // Allow re-submission: Update the existing profile
+        const photoKtpUrl = `uploads/${files.photoKtp[0].filename}`;
+        const photoStallUrl = `uploads/${files.photoStall[0].filename}`;
+        const qrisImageUrl = `uploads/${files.qrisImage[0].filename}`;
+
+        return this.prisma.sellerProfile.update({
+          where: { id: existingProfile.id },
+          data: {
+            stallName: dto.stallName,
+            description: dto.description,
+            location: dto.location,
+            photoKtpUrl,
+            photoStallUrl,
+            qrisImageUrl,
+            verificationStatus: 'UNVERIFIED', // Reset to UNVERIFIED
+            rejectionReason: null, // Clear rejection reason
+          },
+        });
+      } else {
+        throw new BadRequestException('Seller profile already exists');
+      }
+    }
+
     // Construct file paths (names) for storing in the DB
     const photoKtpUrl = `uploads/${files.photoKtp[0].filename}`;
     const photoStallUrl = `uploads/${files.photoStall[0].filename}`;
@@ -149,5 +179,15 @@ export class SellerProfilesService {
         monthly: monthlyRev._sum.totalAmount || 0,
       },
     };
+  }
+
+  /**
+   * Find a seller profile by the user's id. Throws NotFoundException if not found.
+   * Used by frontend routes that call /seller-profiles/me
+   */
+  async findByUser(userId: number): Promise<SellerProfile> {
+    const seller = await this.prisma.sellerProfile.findUnique({ where: { userId } });
+    if (!seller) throw new NotFoundException('Seller profile not found');
+    return seller;
   }
 }

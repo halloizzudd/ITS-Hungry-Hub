@@ -32,7 +32,7 @@ export class ProductsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('SELLER')
   @UseInterceptors(
-    FilesInterceptor('images', 5, {
+    FilesInterceptor('image', 5, {
       storage: diskStorage({
         destination: './uploads',
         filename: (req, file, cb) => {
@@ -68,18 +68,45 @@ export class ProductsController {
       limit: limit ? Number(limit) : 10,
     });
   }
+
+  @Get('my-products')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('SELLER')
+  findAllMyProducts(@Request() req) {
+    return this.productsService.findAllBySeller(req.user.id);
+  }
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.productsService.findOne(+id);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateProductDto: UpdateProductDto) {
-    return this.productsService.update(+id, updateProductDto);
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('SELLER')
+  @UseInterceptors(
+    FilesInterceptor('image', 5, {
+      storage: diskStorage({
+        destination: './uploads',
+        filename: (req, file, cb) => {
+          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+          cb(null, `${uniqueSuffix}${extname(file.originalname)}`);
+        },
+      }),
+    }),
+  )
+  update(
+    @Param('id') id: string,
+    @Body() updateProductDto: UpdateProductDto,
+    @UploadedFiles() images: Array<Express.Multer.File>,
+    @Request() req,
+  ) {
+    return this.productsService.update(+id, updateProductDto, images, req.user);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.productsService.remove(+id);
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('SELLER')
+  remove(@Param('id') id: string, @Request() req) {
+    return this.productsService.remove(+id, req.user);
   }
 }

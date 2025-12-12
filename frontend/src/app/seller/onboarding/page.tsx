@@ -23,10 +23,25 @@ export default function SellerOnboardingPage() {
         const checkVerification = async () => {
             try {
                 const response = await api.get('/seller-profiles/me');
-                if (response.data) {
-                    router.push('/seller/products');
+                const profile = response.data;
+
+                if (profile) {
+                    // If rejected, allow staying on this page to edit
+                    if (profile.verificationStatus === 'REJECTED') {
+                        setFormData({
+                            stallName: profile.stallName || '',
+                            description: profile.description || '',
+                            location: profile.location || '',
+                        });
+                        setMessage('Please update your application based on the admin feedback.');
+                    } else {
+                        // If verified or pending, redirect to products
+                        router.push('/seller/products');
+                    }
                 }
+                setIsLoading(false);
             } catch (err) {
+                // If 404, it means new user, allow to stay
                 setIsLoading(false);
             }
         };

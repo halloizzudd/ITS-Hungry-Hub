@@ -3,12 +3,14 @@ import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from 'src/prisma.service'; // Assuming you have a PrismaService
 import { CreateUserDto } from 'src/users/dto/create-user.dto'; // Your DTO for user registration
+import { MailService } from 'src/mail/mail.service';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
+    private readonly mailService: MailService,
   ) { }
 
   async register(dto: CreateUserDto) {
@@ -33,6 +35,9 @@ export class AuthService {
       },
     });
 
+    // Send Welcome Email (Non-blocking)
+    this.mailService.sendWelcomeEmail(user.email, user.name);
+
     // Exclude password from the response
     return {
       message: 'User registered',
@@ -55,7 +60,23 @@ export class AuthService {
 
   async login(user: any) {
     // Generate JWT access token
-    const payload = { sub: user.id, email: user.email, role: user.role, name: user.name };
+    let verificationStatus: string | null = null;
+
+    if (user.role === 'SELLER') {
+      const sellerProfile = await this.prisma.sellerProfile.findUnique({
+        where: { userId: user.id },
+      });
+      verificationStatus = sellerProfile?.verificationStatus || 'UNVERIFIED';
+    }
+
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      name: user.name,
+      verificationStatus,
+    };
+
     return {
       access_token: this.jwtService.sign(payload, {
         secret: 'SECRET_KEY', // Use a secret key (preferably environment variable)

@@ -5,12 +5,16 @@ import helmet from 'helmet';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  app.use(helmet({
-    crossOriginResourcePolicy: { policy: "cross-origin" },
-  }));
+  app.setGlobalPrefix('api'); // Add /api prefix to all routes
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
   // app.use(helmet());
   app.enableCors({
-    origin: 'http://localhost:3000',
+    origin: ['http://localhost:3000'], // Front-end URLs
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
   });
   app.useGlobalPipes(
@@ -21,4 +25,5 @@ async function bootstrap() {
   );
   await app.listen(4000);
 }
-bootstrap();
+
+void bootstrap();

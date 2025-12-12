@@ -6,6 +6,7 @@ interface User {
     email: string;
     name?: string; // Add name property
     role: string;
+    verificationStatus?: string; // Add verification status
     iat: number;
     exp: number;
 }
@@ -18,6 +19,7 @@ interface AuthState {
     login: (token: string) => void;
     logout: () => void;
     initialize: () => void;
+    updateUser: (updates: Partial<User>) => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -29,39 +31,48 @@ export const useAuthStore = create<AuthState>((set) => ({
     login: (token: string) => {
         try {
             const decoded = jwtDecode<User>(token);
-            localStorage.setItem('auth_token', token);
+            sessionStorage.setItem('auth_token', token);
             set({ token, user: decoded, isAuthenticated: true });
         } catch (error) {
             console.error('Invalid token', error);
-            localStorage.removeItem('auth_token');
+            sessionStorage.removeItem('auth_token');
             set({ token: null, user: null, isAuthenticated: false });
         }
     },
 
     logout: () => {
-        localStorage.removeItem('auth_token');
+        sessionStorage.removeItem('auth_token');
         set({ token: null, user: null, isAuthenticated: false });
     },
 
     initialize: () => {
-        const token = localStorage.getItem('auth_token');
+        // Check if running in browser to avoid SSR errors
+        if (typeof window === 'undefined') return;
+
+        const token = sessionStorage.getItem('auth_token');
         if (token) {
             try {
                 const decoded = jwtDecode<User>(token);
                 // Check if token is expired
                 const currentTime = Date.now() / 1000;
                 if (decoded.exp < currentTime) {
-                    localStorage.removeItem('auth_token');
+                    sessionStorage.removeItem('auth_token');
                     set({ token: null, user: null, isAuthenticated: false, isInitialized: true });
                 } else {
                     set({ token, user: decoded, isAuthenticated: true, isInitialized: true });
                 }
             } catch (error) {
-                localStorage.removeItem('auth_token');
+                sessionStorage.removeItem('auth_token');
                 set({ token: null, user: null, isAuthenticated: false, isInitialized: true });
             }
         } else {
             set({ isInitialized: true });
         }
     },
+
+    updateUser: (updates: Partial<User>) => {
+        set((state) => ({
+            user: state.user ? { ...state.user, ...updates } : null
+        }));
+    }
 }));

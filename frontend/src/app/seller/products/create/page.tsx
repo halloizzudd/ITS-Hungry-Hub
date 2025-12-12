@@ -1,8 +1,9 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/axios';
+import axios from 'axios';
 import { ChevronLeft, Upload, Loader2, DollarSign, Clock, Package } from 'lucide-react';
 
 export default function CreateProductPage() {
@@ -54,12 +55,38 @@ export default function CreateProductPage() {
                 headers: { 'Content-Type': 'multipart/form-data' },
             });
             router.push('/seller/products');
-        } catch (err: any) {
-            setError(err.response?.data?.message || 'Failed to create product');
+        } catch (err: unknown) {
+            let message = 'Failed to create product';
+            if (axios.isAxiosError(err)) {
+                message = err.response?.data?.message || message;
+            }
+            setError(message);
         } finally {
             setLoading(false);
         }
     };
+
+    // Check if seller profile exists; if not, show friendly error and prompt onboarding
+    useEffect(() => {
+        let mounted = true;
+        const checkProfile = async () => {
+            try {
+                await api.get('/seller-profiles/me');
+            } catch (err: unknown) {
+                if (!mounted) return;
+                if (axios.isAxiosError(err)) {
+                    const status = err.response?.status;
+                    if (status === 404) {
+                        setError('Seller profile not found. Please complete onboarding.');
+                        return;
+                    }
+                }
+                console.error('Failed to check seller profile', err);
+            }
+        };
+        checkProfile();
+        return () => { mounted = false; };
+    }, []);
 
     return (
         <div className="max-w-2xl mx-auto pb-20">
@@ -79,9 +106,14 @@ export default function CreateProductPage() {
                     <p className="text-gray-500 text-sm font-medium mb-8">Add a delicious new item to your menu.</p>
 
                     {error && (
-                        <div className="mb-6 p-4 rounded-2xl bg-red-50 text-red-600 text-sm font-bold border border-red-100 flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-red-500"></span>
-                            {error}
+                        <div className="mb-6 p-4 rounded-2xl bg-red-50 text-red-600 text-sm font-bold border border-red-100 flex items-center gap-2 justify-between">
+                            <div className="flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                                <div>{error}</div>
+                            </div>
+                            {error.toLowerCase().includes('onboarding') && (
+                                <a href="/seller/onboarding" className="inline-block ml-4 bg-white text-[#5C9E33] px-3 py-1 rounded-lg font-bold border border-green-100">Complete Onboarding</a>
+                            )}
                         </div>
                     )}
 

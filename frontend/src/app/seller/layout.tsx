@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@/store/useAuthStore';
+import api from '@/lib/axios';
 import { LayoutDashboard, UtensilsCrossed, ClipboardList, LogOut, Store } from 'lucide-react';
 
 export default function SellerLayout({
@@ -15,12 +16,40 @@ export default function SellerLayout({
     const pathname = usePathname();
     const { user, isAuthenticated, logout, isInitialized } = useAuthStore();
     const [mounted, setMounted] = useState(false);
+    const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
 
     useEffect(() => {
         setMounted(true);
         if (isInitialized) {
             if (!isAuthenticated || user?.role !== 'SELLER') {
                 router.push('/login');
+            } else {
+                // Initial status from token
+                if (user.verificationStatus) {
+                    setVerificationStatus(user.verificationStatus);
+                }
+
+                // Fetch fresh status from backend
+                api.get('/seller-profiles/me')
+                    .then(res => {
+                        console.log('Fetched seller profile:', res.data);
+                        if (res.data?.verificationStatus) {
+                            setVerificationStatus(res.data.verificationStatus);
+                            // Sync to global store
+                            useAuthStore.getState().updateUser({ verificationStatus: res.data.verificationStatus });
+                        }
+                    })
+                    .catch(err => {
+                        // If 404, it means profile doesn't exist yet (new seller not onboarded)
+                        // Treat as UNVERIFIED or handle appropriately
+                        if (err.response && err.response.status === 404) {
+                            console.warn('Seller profile not found (User might be new). Defaulting to UNVERIFIED.');
+                            setVerificationStatus('UNVERIFIED');
+                            useAuthStore.getState().updateUser({ verificationStatus: 'UNVERIFIED' });
+                        } else {
+                            console.error('Failed to fetch seller profile', err);
+                        }
+                    });
             }
         }
     }, [isAuthenticated, user, router, isInitialized]);
@@ -67,9 +96,45 @@ export default function SellerLayout({
 
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-4 mb-4">Management</p>
 
+
+                    {/* Pending Verification Warning */}
+                    {verificationStatus !== 'VERIFIED' && (
+                        <div className="px-8 mb-6">
+                            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                                <div className="flex items-start gap-3">
+                                    <Link
+                                        href="/seller"
+                                        className="p-2 bg-amber-100 rounded-lg text-amber-600 shrink-0"
+                                    >
+                                        <ClipboardList size={20} />
+                                    </Link>
+                                    <div>
+                                        <h4 className="font-bold text-amber-900 text-sm">Account Pending</h4>
+                                        <p className="text-xs text-amber-700 mt-1">
+                                            Your account is under review. Some features are restricted.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     <nav className="space-y-2">
                         {navItems.map((item) => {
                             const isActive = pathname === item.href || (item.href !== '/seller' && pathname.startsWith(item.href));
+
+                            // Disable restricted items
+                            // Only restrict if verificationStatus is explicitly NOT verified
+                            // If it's null (loading), we might default to showing or hiding. 
+                            // Let's hide restricted items if NOT verified, but wait if null? 
+                            // To be safe: if verificationStatus is null, assume unverified/loading -> restrict.
+                            // BUT if user has old token (undefined), we want to fetch. 
+
+                            const isRestricted = verificationStatus !== 'VERIFIED' &&
+                                ['/seller/products', '/seller/orders'].includes(item.href);
+
+                            if (isRestricted) return null;
+
                             return (
                                 <Link
                                     key={item.href}
@@ -95,7 +160,9 @@ export default function SellerLayout({
                         </div>
                         <div className="min-w-0">
                             <p className="font-bold text-sm text-[#2C2C2C] truncate">{user?.name}</p>
-                            <p className="text-[10px] text-gray-400 truncate uppercase tracking-wide font-bold">Seller Account</p>
+                            <p className="text-[10px] text-gray-400 truncate uppercase tracking-wide font-bold">
+                                {verificationStatus === 'VERIFIED' ? 'Verified Seller' : 'Pending Verification'}
+                            </p>
                         </div>
                     </div>
                     <button

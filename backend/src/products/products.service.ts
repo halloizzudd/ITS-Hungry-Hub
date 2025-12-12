@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { PrismaService } from '../prisma.service';
@@ -18,7 +18,7 @@ export class ProductsService {
     });
 
     if (!seller) {
-      throw new Error('Seller profile not found. Please complete onboarding.');
+      throw new BadRequestException('Seller profile not found. Please complete onboarding.');
     }
 
     // Extract fields
@@ -28,11 +28,11 @@ export class ProductsService {
     // Main image (for backward compatibility) is the first one
     let imageUrl: string | null = null;
     if (images.length > 0) {
-      imageUrl = `/uploads/${images[0].filename}`;
+      imageUrl = `uploads/${images[0].filename}`;
     }
 
     const productImagesData = images.map((file) => ({
-      url: `/uploads/${file.filename}`,
+      url: `uploads/${file.filename}`,
     }));
 
     return this.prisma.product.create({
@@ -73,6 +73,7 @@ export class ProductsService {
       where.OR = [
         { name: { contains: search } }, // sqlite contains is case-insensitive usually but not always? Prisma Default for SQLite is strict?
         { description: { contains: search } },
+        { seller: { stallName: { contains: search } } },
       ];
     }
 
@@ -111,6 +112,24 @@ export class ProductsService {
     };
   }
 
+  async findAllBySeller(userId: number, params?: any) { // Made params optional
+    const seller = await this.prisma.sellerProfile.findUnique({
+      where: { userId },
+    });
+
+    if (!seller) {
+      throw new BadRequestException('Seller profile not found');
+    }
+
+    return this.prisma.product.findMany({
+      where: { sellerId: seller.id },
+      include: {
+        images: true,
+      },
+      orderBy: { id: 'desc' },
+    });
+  }
+
   async findOne(id: number) {
     return this.prisma.product.findUnique({
       where: { id },
@@ -118,23 +137,67 @@ export class ProductsService {
     });
   }
 
-  async update(id: number, updateProductDto: UpdateProductDto) {
+  async update(id: number, updateProductDto: UpdateProductDto, images: Array<Express.Multer.File> = [], user: any) {
+    const existingProduct = await this.prisma.product.findUnique({
+      where: { id },
+      include: { seller: true }
+    });
+
+    if (!existingProduct) {
+      throw new BadRequestException('Product not found');
+    }
+
+    if (existingProduct.seller.userId !== user.id) {
+      throw new ForbiddenException('You are not authorized to update this product');
+    }
+
+    const data: any = { ...updateProductDto };
+
+    // Handle Image Update
+    if (images && images.length > 0) {
+      data.imageUrl = `uploads/${images[0].filename}`;
+    }
+
     const product = await this.prisma.product.update({
       where: { id },
-      data: updateProductDto,
+      data: data,
       include: {
         seller: { include: { user: true } },
       },
     });
 
-    if (product.stock <= 5 && product.seller?.user?.email) {
-      await this.mailService.sendLowStockAlert(product.seller.user.email, product.name, product.stock);
+    if (images && images.length > 0) {
+      const productImagesData = images.map((file) => ({
+        url: `uploads/${file.filename}`,
+        productId: product.id,
+      }));
+
+      await this.prisma.productImage.createMany({
+        data: productImagesData,
+      });
+    }
+
+    if (product.stock < 10 && product.seller?.user?.email) {
+      await this.mailService.sendLowStockWarning(product.seller.user.email, product.name, product.stock);
     }
 
     return product;
   }
 
-  async remove(id: number) {
+  async remove(id: number, user: any) {
+    const existingProduct = await this.prisma.product.findUnique({
+      where: { id },
+      include: { seller: true }
+    });
+
+    if (!existingProduct) {
+      throw new BadRequestException('Product not found');
+    }
+
+    if (existingProduct.seller.userId !== user.id) {
+      throw new ForbiddenException('You are not authorized to delete this product');
+    }
+
     return this.prisma.product.delete({ where: { id } });
   }
 }

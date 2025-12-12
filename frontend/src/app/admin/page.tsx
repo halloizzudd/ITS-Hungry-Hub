@@ -1,136 +1,183 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import api from '@/lib/axios';
-import Link from 'next/link';
-import { UserCheck, Activity, Store, ArrowRight, Loader2, TrendingUp } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useAuthStore } from '@/store/useAuthStore';
+import { TrendingUp, Users, ShoppingBag, DollarSign, Loader2 } from 'lucide-react';
+import api from '@/lib/axios'; // Pastikan import ini ada
 
 export default function AdminDashboard() {
-    const [pendingCount, setPendingCount] = useState<number | null>(null);
+    const { user } = useAuthStore();
     const [loading, setLoading] = useState(true);
+    const [statsData, setStatsData] = useState({
+        revenue: 0,
+        activeSellers: 0,
+        totalOrders: 0,
+        growth: 15 // Placeholder jika belum ada logic growth di backend
+    });
+    const [recentActivities, setRecentActivities] = useState<any[]>([]);
 
     useEffect(() => {
-        const fetchStats = async () => {
+        const fetchDashboardData = async () => {
             try {
-                const res = await api.get('/seller-profiles?status=UNVERIFIED');
-                setPendingCount(res.data.length);
+                setLoading(true);
+
+                // 1. Fetch All Users (untuk menghitung Active Sellers & Recent Registrations)
+                const usersResponse = await api.get('/users');
+                const users = usersResponse.data.data || usersResponse.data;
+                
+                // Filter Seller
+                const sellers = Array.isArray(users) ? users.filter((u: any) => u.role === 'SELLER') : [];
+                
+                // Ambil 3 seller terbaru untuk "Recent Activities"
+                const sortedSellers = [...sellers].sort((a: any, b: any) => 
+                    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                ).slice(0, 3);
+
+                setRecentActivities(sortedSellers);
+
+                // 2. Fetch All Orders (untuk menghitung Revenue & Total Orders)
+                const ordersResponse = await api.get('/orders'); // Pastikan admin punya akses ke endpoint ini
+                const orders = ordersResponse.data.data || ordersResponse.data;
+                
+                const orderList = Array.isArray(orders) ? orders : [];
+                const totalOrd = orderList.length;
+                
+                // Hitung Revenue (Sum of totalAmount)
+                const totalRev = orderList.reduce((acc: number, curr: any) => acc + (Number(curr.totalAmount) || 0), 0);
+
+                setStatsData(prev => ({
+                    ...prev,
+                    revenue: totalRev,
+                    activeSellers: sellers.length,
+                    totalOrders: totalOrd
+                }));
+
             } catch (error) {
-                console.error('Failed to fetch admin stats', error);
+                console.error("Failed to fetch admin dashboard data", error);
             } finally {
                 setLoading(false);
             }
         };
-        fetchStats();
-    }, []);
 
-    if (loading) {
-        return (
-            <div className="flex h-[50vh] w-full items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-[#5C9E33]" />
-            </div>
-        );
-    }
+        if (user?.role === 'ADMIN') {
+            fetchDashboardData();
+        }
+    }, [user]);
+
+    const formatCurrency = (value: number) => {
+        return new Intl.NumberFormat('id-ID', {
+            style: 'currency',
+            currency: 'IDR',
+            maximumFractionDigits: 0
+        }).format(value);
+    };
+
+    const formatTimeAgo = (dateString: string) => {
+        const date = new Date(dateString);
+        const now = new Date();
+        const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+        
+        if (diffInSeconds < 60) return `${diffInSeconds}s ago`;
+        if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+        if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+        return `${Math.floor(diffInSeconds / 86400)}d ago`;
+    };
+
+    // Mapping data state ke UI cards
+    const stats = [
+        { 
+            title: 'Total Revenue', 
+            value: loading ? '-' : formatCurrency(statsData.revenue), 
+            icon: DollarSign, 
+            color: 'text-green-600', 
+            bg: 'bg-green-50' 
+        },
+        { 
+            title: 'Active Sellers', 
+            value: loading ? '-' : statsData.activeSellers.toString(), 
+            icon: Users, 
+            color: 'text-blue-600', 
+            bg: 'bg-blue-50' 
+        },
+        { 
+            title: 'Total Orders', 
+            value: loading ? '-' : statsData.totalOrders.toString(), 
+            icon: ShoppingBag, 
+            color: 'text-purple-600', 
+            bg: 'bg-purple-50' 
+        },
+        { 
+            title: 'Growth', 
+            value: `+${statsData.growth}%`, 
+            icon: TrendingUp, 
+            color: 'text-orange-600', 
+            bg: 'bg-orange-50' 
+        },
+    ];
 
     return (
-        <div className="space-y-10 max-w-6xl mx-auto">
-            {/* Header Section */}
-            <div className="flex flex-col gap-2">
-                <h1 className="text-4xl font-black text-[#2C2C2C] tracking-tight">
-                    Dashboard <span className="text-[#5C9E33]">Overview</span>
-                </h1>
-                <p className="text-gray-500 font-medium">
-                    Welcome back, Admin. Here is today's system activity summary.
+        <div className="space-y-8 w-full max-w-7xl mx-auto">
+            {/* 1. Header Section */}
+            <div>
+                <h1 className="text-3xl font-black text-[#2C2C2C] tracking-tight">Dashboard Overview</h1>
+                <p className="text-gray-400 mt-2 font-medium">
+                    Welcome back, <span className="text-[#5C9E33] font-bold">{user?.name || 'Admin'}</span>! Here is the real-time data from your platform.
                 </p>
             </div>
 
-            {/* Info Banner (Green Gradient) */}
-            <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-r from-[#5C9E33] to-[#86efac] p-8 text-white shadow-xl shadow-green-500/20">
-                <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-                    <div>
-                        <h2 className="text-2xl font-bold mb-2">Needs Attention! 🚀</h2>
-                        <p className="text-green-50 text-sm md:text-base max-w-2xl leading-relaxed opacity-90">
-                            There are incoming verification requests from new canteen tenants. 
-                            Please review their documents to maintain platform quality.
-                        </p>
+            {/* 2. Stats Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+                {stats.map((stat, index) => (
+                    <div key={index} className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 hover:shadow-md transition-shadow relative overflow-hidden group">
+                        <div className="flex items-center justify-between mb-4 relative z-10">
+                            <div className={`p-3 rounded-full ${stat.bg} ${stat.color}`}>
+                                <stat.icon size={24} />
+                            </div>
+                            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">All Time</span>
+                        </div>
+                        <h3 className="text-3xl font-black text-[#2C2C2C] relative z-10">
+                            {stat.value}
+                        </h3>
+                        <p className="text-sm text-gray-400 font-bold mt-1 relative z-10">{stat.title}</p>
+                        
+                        {/* Decorative Blob */}
+                        <div className={`absolute -right-4 -bottom-4 w-24 h-24 rounded-full opacity-10 group-hover:scale-110 transition-transform ${stat.bg.replace('bg-', 'bg-')}`}></div>
                     </div>
-                    {pendingCount !== null && pendingCount > 0 && (
-                         <div className="bg-white/20 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/30 text-center min-w-[120px]">
-                            <span className="block text-3xl font-black">{pendingCount}</span>
-                            <span className="text-xs font-bold uppercase tracking-wider opacity-80">Pending</span>
-                         </div>
-                    )}
-                </div>
-                {/* Decor circles */}
-                <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/20 rounded-full blur-2xl"></div>
-                <div className="absolute -bottom-10 left-10 w-32 h-32 bg-yellow-300/30 rounded-full blur-2xl"></div>
+                ))}
             </div>
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {/* 3. Recent Activity Section (Real Data) */}
+            <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100">
+                <div className="flex items-center justify-between mb-8">
+                    <h2 className="text-xl font-bold text-[#2C2C2C]">Recent Seller Registrations</h2>
+                    <button className="text-sm font-bold text-[#5C9E33] hover:underline">View All</button>
+                </div>
                 
-                {/* Pending Verifications Card */}
-                <div className="group relative bg-white p-8 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(92,158,51,0.15)] transition-all duration-300 hover:-translate-y-1 border border-transparent hover:border-green-100">
-                    <div className="flex items-start justify-between mb-8">
-                        <div>
-                            <p className="text-xs font-bold tracking-widest text-orange-500 uppercase mb-2">Pending Actions</p>
-                            <h3 className="text-5xl font-black text-[#2C2C2C]">
-                                {pendingCount !== null ? pendingCount : '-'}
-                            </h3>
+                <div className="space-y-4">
+                    {loading ? (
+                        <div className="flex justify-center py-8 text-gray-400">
+                            <Loader2 className="animate-spin" />
                         </div>
-                        <div className="p-4 bg-orange-50 rounded-2xl group-hover:scale-110 transition-transform duration-300">
-                            <UserCheck className="w-8 h-8 text-orange-500" />
-                        </div>
-                    </div>
-                    
-                    <div className="pt-4 border-t border-gray-50">
-                        <Link
-                            href="/admin/verifications"
-                            className="inline-flex items-center gap-2 text-sm font-bold text-[#2C2C2C] group-hover:text-orange-600 transition-colors"
-                        >
-                            Review Requests 
-                            <div className="bg-gray-100 group-hover:bg-orange-100 p-1 rounded-full transition-colors">
-                                <ArrowRight className="w-4 h-4" />
+                    ) : recentActivities.length > 0 ? (
+                        recentActivities.map((activity) => (
+                            <div key={activity.id} className="flex items-center gap-4 p-4 rounded-2xl bg-[#f8fcf8] border border-gray-50 hover:bg-green-50/30 transition-colors">
+                                <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center text-[#5C9E33] font-bold">
+                                    {activity.name.charAt(0).toUpperCase()}
+                                </div>
+                                <div className="flex-1">
+                                    <p className="text-sm font-bold text-[#2C2C2C]">New Seller Joined</p>
+                                    <p className="text-xs text-gray-400">
+                                        <span className="font-bold text-gray-600">{activity.name}</span> ({activity.email}) has registered.
+                                    </p>
+                                </div>
+                                <span className="text-xs font-bold text-gray-400 whitespace-nowrap">
+                                    {activity.createdAt ? formatTimeAgo(activity.createdAt) : 'Recently'}
+                                </span>
                             </div>
-                        </Link>
-                    </div>
-                </div>
-
-                {/* System Status */}
-                <div className="group relative bg-white p-8 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(92,158,51,0.15)] transition-all duration-300 hover:-translate-y-1 border border-transparent hover:border-green-100">
-                    <div className="flex items-start justify-between mb-8">
-                        <div>
-                            <p className="text-xs font-bold tracking-widest text-[#5C9E33] uppercase mb-2">System Health</p>
-                            <h3 className="text-2xl font-black text-[#2C2C2C] mt-1">Operational</h3>
-                            <p className="text-sm text-gray-400 font-medium mt-1">All systems normal</p>
-                        </div>
-                        <div className="p-4 bg-[#eefbf0] rounded-2xl group-hover:scale-110 transition-transform duration-300">
-                            <Activity className="w-8 h-8 text-[#5C9E33]" />
-                        </div>
-                    </div>
-                    <div className="pt-4 border-t border-gray-50 flex items-center gap-2">
-                         <div className="relative flex h-3 w-3">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-3 w-3 bg-[#5C9E33]"></span>
-                          </div>
-                         <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Live Monitoring</span>
-                    </div>
-                </div>
-
-                {/* Total Sellers Placeholder */}
-                <div className="group relative bg-white/60 p-8 rounded-[2rem] border border-dashed border-gray-200 hover:bg-white transition-all duration-300">
-                    <div className="flex items-start justify-between mb-6">
-                        <div>
-                            <p className="text-xs font-bold tracking-widest text-blue-500 uppercase mb-2">Total Tenants</p>
-                            <h3 className="text-4xl font-black text-gray-300">--</h3>
-                        </div>
-                        <div className="p-4 bg-gray-50 rounded-2xl">
-                            <Store className="w-8 h-8 text-gray-300 group-hover:text-blue-500 transition-colors" />
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-400 font-medium bg-gray-50 p-2 rounded-lg w-fit">
-                        <TrendingUp size={16} />
-                        Coming Soon
-                    </div>
+                        ))
+                    ) : (
+                        <p className="text-center text-gray-400 text-sm py-4">No recent activities found.</p>
+                    )}
                 </div>
             </div>
         </div>

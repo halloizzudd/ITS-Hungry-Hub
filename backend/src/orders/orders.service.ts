@@ -7,7 +7,7 @@ import { MailService } from '../mail/mail.service';
 
 @Injectable()
 export class OrdersService {
-  private readonly LOW_STOCK_THRESHOLD = 5;
+  private readonly LOW_STOCK_THRESHOLD = 10;
 
   constructor(
     private prisma: PrismaService,
@@ -98,14 +98,18 @@ export class OrdersService {
         data: { stock: { decrement: item.quantity } },
       });
 
-      if (updatedProduct.stock <= this.LOW_STOCK_THRESHOLD && order.seller?.user?.email) {
-        await this.mailService.sendLowStockAlert(order.seller.user.email, updatedProduct.name, updatedProduct.stock);
+      if (updatedProduct.stock < this.LOW_STOCK_THRESHOLD && order.seller?.user?.email) {
+        await this.mailService.sendLowStockWarning(order.seller.user.email, updatedProduct.name, updatedProduct.stock);
       }
     }
 
-    // Send confirmation email to customer
+    // Send confirmation email to customer and alert to seller
     if (order.user && order.user.email) {
-      await this.mailService.sendOrderConfirmation(order.user.email, order.id, order.totalAmount);
+      await this.mailService.sendOrderConfirmation(order.user.email, order);
+    }
+
+    if (order.seller?.user?.email) {
+      await this.mailService.sendNewOrderAlert(order.seller.user.email, order);
     }
 
     return order;
@@ -178,9 +182,9 @@ export class OrdersService {
       include: { user: true },
     });
 
-    // Send email when order is READY
-    if (updateOrderDto.status === 'READY' && order.user && order.user.email) {
-      await this.mailService.sendOrderReady(order.user.email, order.id);
+    // Send email when order status changes
+    if (order.user && order.user.email && updateOrderDto.status) {
+      await this.mailService.sendOrderStatusUpdate(order.user.email, order.id.toString(), updateOrderDto.status);
     }
 
     return order;

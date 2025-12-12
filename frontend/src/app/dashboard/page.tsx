@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import api from '@/lib/axios';
 import { getImageUrl } from '@/utils/image';
-import { Clock, Plus, ShoppingCart, Search, Star, Utensils, X, ChevronRight, Filter, User, Bell, LogOut, ChevronDown, UserCircle } from 'lucide-react';
+import { Clock, Plus, ShoppingCart, Search, Star, Utensils, X, ChevronRight, Filter, User, Bell, LogOut, ChevronDown, UserCircle, Tag } from 'lucide-react';
 import { useCartStore } from '@/store/useCartStore';
 import { useAuthStore } from '@/store/useAuthStore'; // Import Auth
 import { useRouter } from 'next/navigation';
@@ -19,7 +19,9 @@ interface Product {
     category: string;
     prepTime: number;
     sellerId: number;
-    stallName?: string;
+    seller?: {
+        stallName: string;
+    };
     images?: { url: string }[];
 }
 
@@ -83,8 +85,15 @@ export default function ConsumerDashboard() {
                 if (response.data && response.data.name) {
                     setUserName(response.data.name);
                 }
-            } catch (error) {
+            } catch (error: any) {
                 console.error('Failed to fetch profile', error);
+
+                // PENANGANAN KHUSUS ERROR 401
+                if (error.response && error.response.status === 401) {
+                    console.log('Session expired, logging out...');
+                    logout(); // Hapus state user
+                    router.push('/login'); // Lempar ke login
+                }
             }
         };
 
@@ -100,7 +109,8 @@ export default function ConsumerDashboard() {
         if (searchQuery) {
             result = result.filter(p =>
                 p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                p.description.toLowerCase().includes(searchQuery.toLowerCase())
+                p.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                p.seller?.stallName?.toLowerCase().includes(searchQuery.toLowerCase())
             );
         }
         setFilteredProducts(result);
@@ -174,8 +184,8 @@ export default function ConsumerDashboard() {
                                     <User size={18} />
                                 </div>
                                 <div className="hidden md:flex flex-col items-start mr-1 text-left">
-                                    {/* UPDATED: Menggunakan "Hi," dan Nama Asli */}
-                                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Hi,</span>
+                                    {/* UPDATED: Menggunakan "Welcome," dan Nama Asli */}
+                                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Welcome,</span>
                                     <span className="text-sm font-bold text-[#2C2C2C] leading-none truncate max-w-[150px]">
                                         {userName || user?.name || 'Guest'}
                                     </span>
@@ -348,6 +358,14 @@ export default function ConsumerDashboard() {
                                             <Clock className="w-3.5 h-3.5 text-[#5C9E33]" />
                                             <span className="text-[11px] font-bold text-gray-700">{product.prepTime}m</span>
                                         </div>
+
+                                        {/* Category Badge */}
+                                        <div className="absolute top-2 -left-2 z-20">
+                                            <span className="inline-flex items-center gap-1 rounded-full bg-white/90 backdrop-blur-md px-3 py-1 text-[10px] font-bold text-gray-700 shadow-md border border-gray-50">
+                                                <Tag className="h-3 w-3 text-[#5C9E33]" />
+                                                {product.category}
+                                            </span>
+                                        </div>
                                     </div>
 
                                     {/* Content */}
@@ -364,12 +382,12 @@ export default function ConsumerDashboard() {
                                         </p>
 
                                         <span className="inline-block px-3 py-1 rounded-lg bg-gray-50 text-[10px] font-bold text-gray-400 uppercase tracking-widest border border-gray-100">
-                                            {product.stallName || 'Canteen Stall'}
+                                            {product.seller?.stallName || 'Canteen Stall'}
                                         </span>
                                     </div>
 
                                     {/* Footer */}
-                                    <div className="flex items-center justify-between mt-6 border-t border-gray-50 pt-5">
+                                    <div className="flex items-center justify-between mt-6 border-t border-gray-50 pt-5" >
                                         <div className="flex flex-col items-start">
                                             <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wide">Price</span>
                                             <span className="text-lg font-black text-[#2C2C2C]">
@@ -387,52 +405,57 @@ export default function ConsumerDashboard() {
                                 </div>
                             ))}
                         </div>
-                    )}
+                    )
+                    }
 
                     {/* Empty State */}
-                    {!loading && filteredProducts.length === 0 && (
-                        <div className="mt-20 flex flex-col items-center justify-center text-center py-20 px-4 rounded-[3rem] border border-dashed border-gray-200 bg-white/50">
-                            <div className="relative mb-6">
-                                <div className="absolute inset-0 bg-green-100 rounded-full blur-xl opacity-50"></div>
-                                <div className="relative bg-white p-6 rounded-full shadow-sm border border-green-50">
-                                    <Search className="h-10 w-10 text-[#5C9E33]" />
+                    {
+                        !loading && filteredProducts.length === 0 && (
+                            <div className="mt-20 flex flex-col items-center justify-center text-center py-20 px-4 rounded-[3rem] border border-dashed border-gray-200 bg-white/50">
+                                <div className="relative mb-6">
+                                    <div className="absolute inset-0 bg-green-100 rounded-full blur-xl opacity-50"></div>
+                                    <div className="relative bg-white p-6 rounded-full shadow-sm border border-green-50">
+                                        <Search className="h-10 w-10 text-[#5C9E33]" />
+                                    </div>
                                 </div>
+                                <h3 className="text-2xl font-bold text-[#2C2C2C] mb-2">Oops, No Results</h3>
+                                <p className="text-gray-400 max-w-sm mx-auto mb-8 font-medium">
+                                    We couldn't find exactly what you're looking for. Maybe try searching for "Chicken" or "Coffee"?
+                                </p>
+                                <button
+                                    onClick={() => { setSearchQuery(''); setSelectedCategory('All'); }}
+                                    className="px-10 py-4 rounded-full bg-[#2C2C2C] text-white font-bold hover:bg-black transition-all shadow-xl hover:-translate-y-1"
+                                >
+                                    Clear All Filters
+                                </button>
                             </div>
-                            <h3 className="text-2xl font-bold text-[#2C2C2C] mb-2">Oops, No Results</h3>
-                            <p className="text-gray-400 max-w-sm mx-auto mb-8 font-medium">
-                                We couldn't find exactly what you're looking for. Maybe try searching for "Chicken" or "Coffee"?
-                            </p>
-                            <button
-                                onClick={() => { setSearchQuery(''); setSelectedCategory('All'); }}
-                                className="px-10 py-4 rounded-full bg-[#2C2C2C] text-white font-bold hover:bg-black transition-all shadow-xl hover:-translate-y-1"
-                            >
-                                Clear All Filters
-                            </button>
-                        </div>
-                    )}
-                </div>
-            </main>
+                        )
+                    }
+                </div >
+            </main >
 
             {/* --- 5. FLOATING CART --- */}
-            {cartItemCount > 0 && (
-                <div className="fixed bottom-10 right-6 lg:right-12 z-50">
-                    <Link href="/cart">
-                        <button className="relative group flex items-center bg-[#2C2C2C] hover:bg-[#1a1a1a] text-white rounded-full p-2 pr-8 shadow-2xl shadow-green-900/30 transition-all hover:scale-105 active:scale-95 border-2 border-white/10 backdrop-blur-md">
-                            <div className="bg-[#5C9E33] w-14 h-14 rounded-full flex items-center justify-center text-white shadow-md group-hover:rotate-12 transition-transform">
-                                <ShoppingCart size={24} className="fill-white/20" />
-                                <div className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold h-6 w-6 flex items-center justify-center rounded-full border-[3px] border-[#2C2C2C]">
-                                    {cartItemCount}
+            {
+                cartItemCount > 0 && (
+                    <div className="fixed bottom-10 right-6 lg:right-12 z-50">
+                        <Link href="/cart">
+                            <button className="relative group flex items-center bg-[#2C2C2C] hover:bg-[#1a1a1a] text-white rounded-full p-2 pr-8 shadow-2xl shadow-green-900/30 transition-all hover:scale-105 active:scale-95 border-2 border-white/10 backdrop-blur-md">
+                                <div className="bg-[#5C9E33] w-14 h-14 rounded-full flex items-center justify-center text-white shadow-md group-hover:rotate-12 transition-transform">
+                                    <ShoppingCart size={24} className="fill-white/20" />
+                                    <div className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold h-6 w-6 flex items-center justify-center rounded-full border-[3px] border-[#2C2C2C]">
+                                        {cartItemCount}
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="ml-4 text-left">
-                                <span className="block text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-0.5">My Cart</span>
-                                <span className="block text-base font-bold leading-none text-white">Checkout Now</span>
-                            </div>
-                            <ChevronRight className="absolute right-3 text-gray-600 group-hover:text-white transition-colors" size={20} />
-                        </button>
-                    </Link>
-                </div>
-            )}
-        </div>
+                                <div className="ml-4 text-left">
+                                    <span className="block text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-0.5">My Cart</span>
+                                    <span className="block text-base font-bold leading-none text-white">Checkout Now</span>
+                                </div>
+                                <ChevronRight className="absolute right-3 text-gray-600 group-hover:text-white transition-colors" size={20} />
+                            </button>
+                        </Link>
+                    </div>
+                )
+            }
+        </div >
     );
 }

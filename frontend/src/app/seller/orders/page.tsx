@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import api from '@/lib/axios';
 import { getImageUrl } from '@/utils/image';
 import { Order, OrderStatus } from '@/types/order';
-import { ChefHat, CheckCircle, AlertCircle, Archive, Eye } from 'lucide-react';
+import { ChefHat, CheckCircle, AlertCircle, Archive, Eye, X } from 'lucide-react';
 
 export default function SellerOrdersPage() {
     const [orders, setOrders] = useState<Order[]>([]);
@@ -139,12 +139,25 @@ export default function SellerOrdersPage() {
                 )}
             </section>
 
+
             {/* Proof Modal */}
             {selectedProof && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-                    <div className="bg-white p-2 rounded-3xl max-w-md w-full shadow-2xl relative">
-                        <button onClick={() => setSelectedProof(null)} className="absolute -top-10 right-0 text-white font-bold">Close [X]</button>
-                        <img src={getImageUrl(selectedProof)} alt="Proof" className="w-full h-auto rounded-2xl object-contain" />
+                <div
+                    className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200"
+                    onClick={() => setSelectedProof(null)}
+                >
+                    <div className="relative max-w-full max-h-full" onClick={e => e.stopPropagation()}>
+                        <button
+                            onClick={() => setSelectedProof(null)}
+                            className="absolute -top-14 right-0 md:-right-10 text-white/80 hover:text-white p-2 hover:bg-white/10 rounded-full transition-all"
+                        >
+                            <X className="w-8 h-8" />
+                        </button>
+                        <img
+                            src={getImageUrl(selectedProof)}
+                            alt="Payment Proof"
+                            className="max-w-[90vw] max-h-[85vh] object-contain rounded-2xl shadow-2xl ring-1 ring-white/10"
+                        />
                     </div>
                 </div>
             )}

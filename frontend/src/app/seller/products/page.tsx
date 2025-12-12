@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import api from '@/lib/axios';
 import { getImageUrl } from '@/utils/image';
+import { useAuthStore } from '@/store/useAuthStore';
 import { Plus, Clock, Tag, Utensils, Edit2, Trash2, AlertCircle } from 'lucide-react';
 import Image from 'next/image';
 
@@ -20,10 +22,12 @@ interface Product {
 export default function ProductListPage() {
     const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
+    const router = useRouter();
+    const { user } = useAuthStore();
 
     const fetchProducts = async () => {
         try {
-            const response = await api.get('/products');
+            const response = await api.get('/products/my-products');
             // Backend now returns { data: [], meta: {} }
             const productList = response.data.data || response.data;
             console.log('Fetched products:', productList);
@@ -36,8 +40,12 @@ export default function ProductListPage() {
     };
 
     useEffect(() => {
+        if (user && user.role === 'SELLER' && user.verificationStatus !== 'VERIFIED') {
+            router.push('/seller');
+            return;
+        }
         fetchProducts();
-    }, []);
+    }, [user, router]);
 
     const handleDelete = async (id: number) => {
         if (confirm('Are you sure you want to delete this product? This action cannot be undone.')) {
@@ -87,11 +95,11 @@ export default function ProductListPage() {
             ) : (
                 <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                     {products.map((product: any) => {
-                        console.log({product});
+                        console.log({ product });
 
-                        
+
                         const fullImageUrl = getImageUrl(product.imageUrl || product.images?.[0]?.url);
-                        console.log({fullImageUrl});
+                        console.log({ fullImageUrl });
                         return (
                             <div key={product.id} className="group relative bg-white rounded-[2.5rem] p-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-xl hover:shadow-green-900/10 transition-all duration-300 hover:-translate-y-1 border border-transparent hover:border-green-100 flex flex-col h-full">
                                 {/* Image */}
@@ -105,9 +113,9 @@ export default function ProductListPage() {
                                             unoptimized
                                             alt={product.name}
                                             className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
-                                            // onError={(e) => {
-                                            //     (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300?text=No+Image';
-                                            // }}
+                                        // onError={(e) => {
+                                        //     (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300?text=No+Image';
+                                        // }}
                                         />
                                     ) : (
                                         <div className="flex h-full items-center justify-center text-gray-300">

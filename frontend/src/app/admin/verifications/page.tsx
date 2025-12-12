@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import api from '@/lib/axios';
 import { Check, X, MapPin, Store, User, FileText, ImageOff, Loader2, ExternalLink } from 'lucide-react';
+import { getImageUrl } from '@/utils/image';
 
 interface SellerProfile {
     id: number;
@@ -35,6 +36,21 @@ export default function VerificationPage() {
         fetchSellers();
     }, []);
 
+    // Debug: Log sellers data and image URLs
+    useEffect(() => {
+        if (sellers.length > 0) {
+            console.log('Sellers:', sellers);
+            sellers.forEach(seller => {
+                console.log(`Seller ${seller.id} (${seller.stallName}):`, {
+                    photoKtpUrl: seller.photoKtpUrl,
+                    photoStallUrl: seller.photoStallUrl,
+                    qrisImageUrl: seller.qrisImageUrl,
+                    photoStallFullUrl: getImageUrl(seller.photoStallUrl),
+                });
+            });
+        }
+    }, [sellers]);
+
     const handleVerification = async (id: number, status: 'VERIFIED' | 'REJECTED') => {
         const action = status === 'VERIFIED' ? 'approve' : 'reject';
         if (!confirm(`Are you sure you want to ${action} this seller?`)) return;
@@ -48,11 +64,9 @@ export default function VerificationPage() {
         }
     };
 
-    const getImageUrl = (path: string) => {
-        if (!path) return '';
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-        return `${baseUrl}/${path}`;
-    };
+
+    // `getImageUrl` will normalize path and combine NEXT_PUBLIC_API_URL with the stored path
+
 
     if (loading) {
         return (
@@ -63,7 +77,7 @@ export default function VerificationPage() {
     }
 
     return (
-        <div className="space-y-8 max-w-7xl mx-auto">
+        <div className="space-y-8 max-w-7xl mx-auto pb-20">
             {/* Header Section */}
             <div className="flex flex-col gap-1">
                 <h1 className="text-3xl font-black text-[#2C2C2C] tracking-tight">Seller Verifications</h1>

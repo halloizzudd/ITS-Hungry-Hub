@@ -8,64 +8,72 @@ export class MailService {
     private readonly logger = new Logger(MailService.name);
 
     constructor(private configService: ConfigService) {
-        const mailPass = this.configService.get<string>('MAIL_PASS');
-        const mailUser = this.configService.get<string>('MAIL_USER') || 'tcizzudd@gmail.com';
-
-        if (!mailPass || mailPass === 'PUT_YOUR_APP_PASSWORD_HERE') {
-            this.logger.warn('MAIL_PASS is not set in .env. Email service will be disabled.');
-            return;
-        }
-
         this.transporter = nodemailer.createTransport({
-            service: 'gmail',
+            host: this.configService.get<string>('MAIL_HOST'),
+            port: this.configService.get<number>('MAIL_PORT'),
+            secure: false, // true for 465, false for other ports
             auth: {
-                user: mailUser,
-                pass: mailPass,
+                user: this.configService.get<string>('MAIL_USER'),
+                pass: this.configService.get<string>('MAIL_PASS'),
             },
         });
     }
 
-    async sendOrderConfirmation(userEmail: string, orderId: number, totalAmount: number) {
-        const subject = `Order Confirmation #${orderId}`;
-        const body = `Thank you for your order. Total: Rp ${totalAmount.toLocaleString('id-ID')}. Status: Waiting for Payment Proof.`;
-
-        // Wrapping text in simple HTML for better presentation, but keeping the core message exactly as requested
-        const html = `
-            <div style="font-family: Arial, sans-serif;">
-                <p>Thank you for your order. Total: Rp ${totalAmount.toLocaleString('id-ID')}. Status: Waiting for Payment Proof.</p>
-            </div>
+    async sendOrderConfirmation(customerEmail: string, orderData: any) {
+        const subject = `Order Confirmation #${orderData.id}`;
+        const total = Number(orderData.totalAmount).toLocaleString('id-ID');
+        const body = `
+            <h3>Thank you for your order!</h3>
+            <p>Order ID: <strong>#${orderData.id}</strong></p>
+            <p>Total: <strong>Rp ${total}</strong></p>
+            <p>Status: ${orderData.status}</p>
+            <p>We have received your order and it is being processed.</p>
         `;
-
-        await this.sendMail(userEmail, subject, html, body);
+        await this.sendMail(customerEmail, subject, body);
     }
 
-    async sendOrderReady(userEmail: string, orderId: number) {
-        const subject = `Your Food is Ready! #${orderId}`;
-        const body = `Your order is ready at the canteen. Please pick it up.`;
-
-        const html = `
-            <div style="font-family: Arial, sans-serif;">
-                <h3 style="color: #4CAF50;">Good news!</h3>
-                <p>${body}</p>
-            </div>
+    async sendNewOrderAlert(sellerEmail: string, orderData: any) {
+        const subject = `New Order Received #${orderData.id}`;
+        const total = Number(orderData.totalAmount).toLocaleString('id-ID');
+        const body = `
+            <h3>You have a new order!</h3>
+            <p>Order ID: <strong>#${orderData.id}</strong></p>
+            <p>Total: <strong>Rp ${total}</strong></p>
+            <p>Please check your dashboard to process this order.</p>
         `;
-
-        await this.sendMail(userEmail, subject, html, body);
+        await this.sendMail(sellerEmail, subject, body);
     }
 
-    async sendLowStockAlert(sellerEmail: string, productName: string, currentStock: number) {
+    async sendOrderStatusUpdate(customerEmail: string, orderId: string, status: string) {
+        const subject = `Order Status Update #${orderId}`;
+        const body = `
+            <h3>Order Status Update</h3>
+            <p>Your order <strong>#${orderId}</strong> status has changed to: <strong>${status}</strong></p>
+        `;
+        await this.sendMail(customerEmail, subject, body);
+    }
+
+    async sendLowStockWarning(sellerEmail: string, productName: string, currentStock: number) {
         const subject = `Low Stock Alert: ${productName}`;
-        const body = `Stock is running low (${currentStock} left). Please restock.`;
-
-        const html = `
-            <div style="font-family: Arial, sans-serif;">
-                <h3 style="color: #FF5722;">⚠️ Low Stock Alert</h3>
-                <p>Product: <strong>${productName}</strong></p>
-                <p>Stock is running low (<strong>${currentStock}</strong> left). Please restock.</p>
-            </div>
+        const body = `
+            <h3>⚠️ Low Stock Warning</h3>
+            <p>Product: <strong>${productName}</strong></p>
+            <p>Current Stock: <strong>${currentStock}</strong></p>
+            <p>Please restock immediately.</p>
         `;
+        await this.sendMail(sellerEmail, subject, body);
+    }
 
-        await this.sendMail(sellerEmail, subject, html, body);
+    async sendWelcomeEmail(userEmail: string, userName: string) {
+        const subject = `Selamat Datang di ITS Hungry Hub!`;
+        const body = `
+            <h3>Halo, ${userName}!</h3>
+            <p>Terima kasih telah mendaftar di <strong>ITS Hungry Hub</strong>.</p>
+            <p>Akun Anda telah berhasil dibuat. Silakan login untuk mulai memesan makanan favorit Anda di kantin ITS.</p>
+            <br>
+            <p>Salam hangat,<br>Tim ITS Hungry Hub</p>
+        `;
+        await this.sendMail(userEmail, subject, body);
     }
 
     async sendWeeklySalesReport(sellerEmail: string, reportData: any) {
@@ -81,28 +89,23 @@ export class MailService {
                 <p>Keep up the great work!</p>
             </div>
         `;
-
         await this.sendMail(sellerEmail, subject, html);
     }
 
-    private async sendMail(to: string, subject: string, html: string, text?: string) {
-        if (!this.transporter) {
-            this.logger.warn(`Email service disabled. Email to ${to} not sent.`);
-            return;
-        }
-
+    private async sendMail(to: string, subject: string, html: string) {
         try {
-            const info = await this.transporter.sendMail({
-                from: '"ITS Hungry Hub" <tcizzudd@gmail.com>',
-                to: to,
-                subject: subject,
-                html: html,
-                text: text || html.replace(/<[^>]*>?/gm, ''), // Fallback text
-            });
+            const mailOptions = {
+                from: `"ITS Hungry Hub" <${this.configService.get<string>('MAIL_USER')}>`,
+                to,
+                subject,
+                html,
+            };
 
-            this.logger.log(`Email sent to ${to}. MessageId: ${info.messageId}`);
+            const info = await this.transporter.sendMail(mailOptions);
+            this.logger.log(`Email sent: ${info.messageId} to ${to}`);
         } catch (error) {
             this.logger.error(`Failed to send email to ${to}`, error.stack);
+            // Don't throw error to prevent blocking the main flow
         }
     }
 }

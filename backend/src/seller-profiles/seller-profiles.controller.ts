@@ -31,33 +31,51 @@ export class SellerProfilesController {
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('SELLER')
-  @UseInterceptors(
-    FileFieldsInterceptor(
-      [
-        { name: 'photoKtp', maxCount: 1 },
-        { name: 'photoStall', maxCount: 1 },
-        { name: 'qrisImage', maxCount: 1 },
-      ],
-      {
-        storage: diskStorage({
-          destination: './uploads', // Store files in the uploads folder
-          filename: (req, file, callback) =>
-            FileUploadService.editFileName(req, file, callback), // Function to rename files
-        }),
-      },
-    ),
-  )
+    @UseInterceptors(
+      FileFieldsInterceptor(
+        [
+          { name: 'photoKtp', maxCount: 1 },
+          { name: 'photoStall', maxCount: 1 },
+          { name: 'qrisImage', maxCount: 1 },
+        ],
+        {
+          storage: diskStorage({
+            destination: './uploads', // Store files in the uploads folder
+            filename: (req, file, callback) =>
+              FileUploadService.editFileName(req, file, callback), // Function to rename files
+          }),
+        },
+      ),
+    )
   async create(
     @Body() dto: CreateSellerProfileDto, // Capture seller profile data from request body
-    @UploadedFiles()
-    files: {
-      photoKtp: Express.Multer.File[];
-      photoStall: Express.Multer.File[];
-      qrisImage: Express.Multer.File[];
-    }, // Capture uploaded files
+      @UploadedFiles() files: { [fieldname: string]: Express.Multer.File[] }, // Capture uploaded files per field
     @Request() req: { user: { id: number; email: string; role: string } }, // Request contains user info (from JWT)
   ) {
-    return this.sellerProfilesService.create(req.user, dto, files); // Service method for profile creation
+    // Files arrive keyed by field name (photoKtp, photoStall, qrisImage)
+    return this.sellerProfilesService.create(req.user, dto, files);
+  }
+
+  @Get('me')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('SELLER')
+  async me(@Request() req: { user: { id: number } }) {
+    // Return the seller profile for the currently authenticated user
+    return this.sellerProfilesService.findByUser(req.user.id);
+  }
+
+  @Get('stats')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('SELLER')
+  async getStats(@Request() req: { user: { id: number } }) {
+    return this.sellerProfilesService.getStats(req.user.id);
+  }
+
+  @Get()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  async findAll(@Query('status') status?: string) {
+    return this.sellerProfilesService.findAll(status);
   }
 
   @Patch(':id/verify')
@@ -72,17 +90,5 @@ export class SellerProfilesController {
       body.status,
       body.reason,
     ); // Service method for verification
-  }
-  @Get()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
-  async findAll(@Query('status') status?: string) {
-    return this.sellerProfilesService.findAll(status);
-  }
-  @Get('stats')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('SELLER')
-  async getStats(@Request() req) {
-    return this.sellerProfilesService.getStats(req.user.id);
   }
 }

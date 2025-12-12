@@ -1,15 +1,26 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { Jwt } from './jwt.strategy';
+import { JwtStrategy } from './jwt.strategy';
+import { PrismaService } from '../../prisma.service';
 
-describe('Jwt', () => {
-  let provider: Jwt;
+describe('JwtStrategy', () => {
+  let provider: JwtStrategy;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [Jwt],
+      providers: [
+        JwtStrategy,
+        {
+          provide: PrismaService,
+          useValue: {
+            user: {
+              findUnique: jest.fn(),
+            },
+          },
+        },
+      ],
     }).compile();
 
-    provider = module.get<Jwt>(Jwt);
+    provider = module.get<JwtStrategy>(JwtStrategy);
   });
 
   it('should be defined', () => {
